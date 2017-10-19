@@ -10,12 +10,14 @@ import (
 	"os"
 
 	"github.com/titanous/rocacheck"
+	"golang.org/x/crypto/openpgp"
 )
 
 func main() {
 	// define cli flags
-	var cert string
+	var cert, armoredKeyring string
 	flag.StringVar(&cert, "cert", "", "x509 Certificate (in PEM encoding) to check for ROCA weakness")
+	flag.StringVar(&armoredKeyring, "armored-keyring", "", "Check a GPG armored keyring file")
 	flag.Parse()
 
 	exec := func(err error) {
@@ -27,9 +29,35 @@ func main() {
 		}
 	}
 
+	if armoredKeyring != "" {
+		exec(checkArmoredKeyring(armoredKeyring))
+	}
+
 	if cert != "" {
 		exec(checkCert(cert))
 	}
+}
+
+func checkArmoredKeyring(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	entities, err := openpgp.ReadArmoredKeyRing(f)
+	if err != nil {
+		return err
+	}
+
+	for i := range entities {
+		pub := entities[i].PrimaryKey
+		if p, ok := pub.PublicKey.(*rsa.PublicKey); ok {
+			fmt.Printf("Checking %s\n", pub.KeyIdShortString())
+			if rocacheck.IsWeak(p) {
+				return fmt.Errorf("public key in %s is vulnerable to roca", path)
+			}
+		}
+	}
+	return nil
 }
 
 func checkCert(path string) error {
