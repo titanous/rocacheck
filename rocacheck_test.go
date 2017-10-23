@@ -85,3 +85,11 @@ func TestKeys(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkIsWeak(b *testing.B) {
+	k := decode(bad[1])
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		IsWeak(k)
+	}
+}
